@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 · 图书馆管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <div class="auth-page">
+        <div class="auth-card">
+            <div class="brand"><span class="logo">📚</span> 图书馆管理系统</div>
+            <h1>欢迎回来</h1>
+            <div class="subtitle">Spring Boot + Spring Data JPA + Vue 3 前后端分离</div>
+
+            <form @submit.prevent="doLogin" autocomplete="off">
+                <div class="field">
+                    <label class="label">用户名</label>
+                    <input v-model.trim="form.name" class="input" placeholder="请输入姓名" maxlength="30" autofocus>
+                </div>
+                <div class="field">
+                    <label class="label">密码</label>
+                    <input v-model="form.password" type="password" class="input" placeholder="请输入密码" maxlength="20">
+                </div>
+                <div v-if="error" class="alert alert-danger">{{ error }}</div>
+                <button type="submit" class="btn btn-primary btn-block" :disabled="loading">
+                    <span v-if="loading" class="spinner"></span>{{ loading ? '登录中…' : '登 录' }}
+                </button>
+                <button type="button" class="btn btn-outline btn-block" style="margin-top:10px;" @click="reset" :disabled="loading">重 置</button>
+            </form>
+
+            <div class="auth-foot">
+                还没有账号？<a href="register.html">立即注册</a>
+            </div>
+            <div class="auth-demo">
+                管理员可查询用户与借阅数据，操作员负责图书管理，教师可推荐图书，学生可借阅与预约。
+            </div>
+        </div>
+    </div>
+</div>
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/axios.min.js"></script>
+<script src="js/common.js"></script>
+<script>
+    const { createApp, reactive, ref, onMounted } = Vue;
+    createApp({
+        setup() {
+            const form = reactive({ name: '', password: '' });
+            const error = ref('');
+            const loading = ref(false);
+
+            function reset() {
+                form.name = '';
+                form.password = '';
+                error.value = '';
+            }
+
+            async function doLogin() {
+                error.value = '';
+                if (!form.name) { error.value = '请输入用户名'; return; }
+                if (!form.password) { error.value = '请输入密码'; return; }
+                loading.value = true;
+                try {
+                    await Lib.post('/auth/login', { name: form.name, password: form.password });
+                    Lib.toast('登录成功');
+                    setTimeout(function () { location.href = 'home.html'; }, 300);
+                } catch (e) {
+                    error.value = Lib.errorMessage(e);
+                } finally {
+                    loading.value = false;
+                }
+            }
+
+            onMounted(function () {
+                Lib.me().then(function (user) {
+                    if (user) location.replace('home.html');
+                }).catch(function () { /* 未登录时停留在此页 */ });
+            });
+
+            return { form, error, loading, reset, doLogin, Lib };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

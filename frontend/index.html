@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图书馆管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="loading" style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
+    <span class="spinner"></span>正在进入图书馆管理系统…
+</div>
+<script src="vendor/axios.min.js"></script>
+<script src="js/common.js"></script>
+<script>
+    Lib.me().then(function (user) {
+        location.replace(user ? 'home.html' : 'login.html');
+    }).catch(function () {
+        location.replace('login.html');
+    });
+</script>
+</body>
+</html>

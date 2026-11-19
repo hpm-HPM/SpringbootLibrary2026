@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>还书 · 图书馆管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar" v-if="me">
+        <div class="brand"><span class="logo">📚</span><div><div class="brand-name">图书馆管理系统</div><div class="brand-sub">归还图书</div></div></div>
+        <div class="top-actions">
+            <a class="notif-bell" href="notifications.html">🔔<span id="notif-count" class="notif-count"></span></a>
+            <div class="top-user"><span class="avatar-sm">{{ me.name.slice(0, 1) }}</span><span class="user-name">{{ me.name }}</span><span class="badge" :class="Lib.roleClass(me.role)">{{ me.role }}</span></div>
+            <button class="btn btn-outline btn-sm" @click="Lib.logout()">退出</button>
+        </div>
+    </header>
+
+    <div class="layout" v-if="me">
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="main">
+            <div class="page-head">
+                <div><h2>还书</h2><p>选择要归还的副本，归还后该记录会从“未还”列表消失。</p></div>
+                <span class="badge badge-info">待归还 {{ loans.length }} 本</span>
+            </div>
+
+            <div class="alert alert-info">
+                逾期费用按每天 1.5 元估算；实际归还后，系统会记录归还时间，并通知下一位预约该书的读者。
+            </div>
+
+            <div class="card">
+                <div class="card-head"><h3>我的未还借阅</h3><span class="text-muted small">按借阅时间倒序</span></div>
+                <div class="card-body" style="padding-top:0;">
+                    <div class="loading" v-if="loading"><span class="spinner"></span>加载中…</div>
+                    <div class="empty-state" v-else-if="loans.length === 0"><div class="empty-icon">✅</div>当前没有需要归还的图书。</div>
+                    <div class="table-wrap" v-else>
+                        <table class="data-table">
+                            <thead><tr><th>图书</th><th>副本 ID</th><th>借阅日期</th><th>应还日期</th><th>状态</th><th>预计逾期费</th><th>操作</th></tr></thead>
+                            <tbody>
+                            <tr v-for="loan in loans" :key="loan.id">
+                                <td><strong>{{ loan.bookTitle }}</strong><div class="small text-muted">{{ loan.bookAuthor }}</div></td>
+                                <td class="mono small">{{ loan.bookCopyId }}</td>
+                                <td>{{ Lib.fmtDate(loan.borrowDate) }}</td>
+                                <td>{{ Lib.fmtDate(loan.dueDate) }}</td>
+                                <td><span class="badge" :class="loan.overdue ? 'badge-danger' : 'badge-info'">{{ loan.overdue ? '已逾期' : '未还' }}</span></td>
+                                <td><span v-if="fine(loan) > 0" class="text-danger">¥ {{ fine(loan).toFixed(2) }}</span><span v-else class="text-muted">¥ 0.00</span></td>
+                                <td><button class="btn btn-primary btn-sm" @click="returnBook(loan)">归还</button></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-18">
+                <div class="card-head"><h3>归还说明</h3></div>
+                <div class="card-body">
+                    <div class="detail-list">
+                        <div class="item"><span class="label">归还方式</span><span class="value">按副本 ID 归还，支持多次归还。</span></div>
+                        <div class="item"><span class="label">数据完整性</span><span class="value">归还记录会保留，不会物理删除借阅历史。</span></div>
+                        <div class="item"><span class="label">预约通知</span><span class="value">归还后若有人预约，系统自动发送“可借”通知。</span></div>
+                        <div class="item"><span class="label">逾期规则</span><span class="value">每逾期 1 天按 1.5 元估算，仅供参考。</span></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/axios.min.js"></script>
+<script src="js/common.js"></script>
+<script>
+    const { createApp, ref, onMounted } = Vue;
+    createApp({
+        setup() {
+            const me = ref(null);
+            const loans = ref([]);
+            const loading = ref(false);
+
+            function fine(loan) {
+                if (!loan || loan.returnDate || !loan.overdue) return 0;
+                const due = Lib.parseTime(loan.dueDate);
+                if (Number.isNaN(due)) return 0;
+                const days = Math.max(0, Math.ceil((Date.now() - due) / 86400000));
+                return days * 1.5;
+            }
+
+            async function load() {
+                loading.value = true;
+                try {
+                    const res = await Lib.get('/loans/my', { page: 1, size: 100, filter: 'unreturned' });
+                    loans.value = res.data.content || [];
+                } catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+                finally { loading.value = false; }
+            }
+
+            async function returnBook(loan) {
+                const tip = fine(loan) > 0 ? '预计逾期费 ¥ ' + fine(loan).toFixed(2) + '，' : '';
+                if (!confirm(tip + '确定归还《' + loan.bookTitle + '》吗？')) return;
+                try {
+                    await Lib.post('/loans/return', { copyId: loan.bookCopyId });
+                    Lib.toast('归还成功');
+                    await load();
+                    Lib.refreshUnreadCount();
+                } catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+            }
+
+            onMounted(async function () {
+                try { me.value = await Lib.initPage('还书'); await load(); }
+                catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+            });
+
+            return { me, loans, loading, fine, returnBook, Lib };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

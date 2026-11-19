@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首页 · 图书馆管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar" v-if="me">
+        <div class="brand">
+            <span class="logo">📚</span>
+            <div>
+                <div class="brand-name">图书馆管理系统</div>
+                <div class="brand-sub">Spring Boot · Spring Data JPA · Vue 3</div>
+            </div>
+        </div>
+        <div class="top-actions">
+            <a class="notif-bell" href="notifications.html" title="消息通知">🔔<span id="notif-count" class="notif-count"></span></a>
+            <div class="top-user">
+                <span class="avatar-sm">{{ initial }}</span>
+                <span class="user-name">{{ me.name }}</span>
+                <span class="badge" :class="Lib.roleClass(me.role)">{{ me.role }}</span>
+            </div>
+            <button class="btn btn-outline btn-sm" @click="doLogout">退出</button>
+        </div>
+    </header>
+
+    <div class="layout" v-if="me">
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="main">
+            <div class="page-head">
+                <div>
+                    <h2>你好，{{ me.name }}</h2>
+                    <p>今天是 {{ todayText }}，欢迎使用图书馆管理系统。</p>
+                </div>
+                <span class="badge" :class="Lib.roleClass(me.role)">{{ me.role }}</span>
+            </div>
+
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="label">馆藏图书</div>
+                    <div class="value">{{ bookTotal }}<span class="unit">种</span></div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">我的未还借阅</div>
+                    <div class="value">{{ activeLoans }}<span class="unit">本</span></div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">未读通知</div>
+                    <div class="value">{{ unread }}<span class="unit">条</span></div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">{{ canReview ? '待审推荐' : '可预约图书' }}</div>
+                    <div class="value">{{ spotlight }}<span class="unit">项</span></div>
+                </div>
+            </div>
+
+            <div class="profile-grid">
+                <div class="card profile-card">
+                    <div class="avatar">{{ initial }}</div>
+                    <div class="profile-info">
+                        <h3>{{ me.name }}</h3>
+                        <div class="profile-sub">
+                            <span class="badge" :class="Lib.roleClass(me.role)">{{ me.role }}</span>
+                            <span class="text-muted">{{ me.major || '未填写专业' }}</span>
+                        </div>
+                        <div class="profile-stats">
+                            <div><strong>{{ me.permissions ? me.permissions.length : 0 }}</strong><span>项功能权限</span></div>
+                            <div><strong>{{ me.phone || '-' }}</strong><span>手机号</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-head"><h3>个人资料</h3></div>
+                    <div class="card-body">
+                        <div class="profile-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;">
+                            <div class="profile-item" v-for="item in profileFields" :key="item.label">
+                                <span class="label">{{ item.label }}</span>
+                                <span class="value">{{ item.value || '-' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-18">
+                <div class="card-head">
+                    <h3>功能入口</h3>
+                    <span class="text-muted small">根据你的角色权限自动展示</span>
+                </div>
+                <div class="card-body">
+                    <div class="feature-grid">
+                        <a class="feature-card" v-for="feature in featureList" :key="feature.href" :href="feature.href">
+                            <div class="feature-icon">{{ feature.icon }}</div>
+                            <div class="feature-title">{{ feature.title }}</div>
+                            <div class="feature-desc">{{ feature.desc }}</div>
+                        </a>
+                        <div v-if="featureList.length === 0" class="empty-state">暂无可用功能，请联系管理员。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-18" v-if="Lib.can(me, '借阅数据统计')">
+                借阅规则提示：单次最多同时借阅 5 本；应还日期按图书可借天数计算；逾期请尽快归还。预约图书在库存为 0 时提交，可借后系统会发送通知。
+            </div>
+        </main>
+    </div>
+
+    <div class="loading" v-else style="min-height:60vh;"><span class="spinner"></span>正在加载首页…</div>
+</div>
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/axios.min.js"></script>
+<script src="js/common.js"></script>
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+    createApp({
+        setup() {
+            const me = ref(null);
+            const bookTotal = ref(0);
+            const activeLoans = ref(0);
+            const unread = ref(0);
+            const spotlight = ref(0);
+
+            const initial = computed(function () {
+                return me.value && me.value.name ? me.value.name.slice(0, 1) : '?';
+            });
+            const featureList = computed(function () { return Lib.features(me.value); });
+            const canReview = computed(function () { return Lib.can(me.value, '审阅推荐图书'); });
+            const todayText = computed(function () {
+                const d = new Date();
+                return d.getFullYear() + ' 年 ' + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日';
+            });
+            const profileFields = computed(function () {
+                if (!me.value) return [];
+                const base = [
+                    { label: '姓名', value: me.value.name },
+                    { label: '角色', value: me.value.role },
+                    { label: '专业', value: me.value.major },
+                    { label: '手机号', value: me.value.phone },
+                    { label: '创建时间', value: Lib.fmt(me.value.createTime) },
+                    { label: '最近登录', value: Lib.fmt(me.value.loginTime) }
+                ];
+                if (me.value.role === '管理员') {
+                    base.push({ label: '权限级别', value: me.value.permissionLevel });
+                    base.push({ label: '入职日期', value: me.value.entryTime });
+                } else if (me.value.role === '操作员') {
+                    base.push({ label: '工作区域', value: me.value.area });
+                    base.push({ label: '岗位职责', value: me.value.duty });
+                } else if (me.value.role === '学生') {
+                    base.push({ label: '年级', value: me.value.grade });
+                    base.push({ label: '学院', value: me.value.college });
+                } else if (me.value.role === '教师') {
+                    base.push({ label: '学院', value: me.value.college });
+                    base.push({ label: '职称', value: me.value.title });
+                }
+                return base;
+            });
+
+            async function loadCounts() {
+                Lib.get('/books', { page: 1, size: 1 }).then(function (res) {
+                    bookTotal.value = res.data.total || 0;
+                }).catch(function () {});
+                if (Lib.can(me.value, '个人借阅查询')) {
+                    Lib.get('/loans/my', { page: 1, size: 1, filter: 'unreturned' }).then(function (res) {
+                        activeLoans.value = res.data.total || 0;
+                    }).catch(function () {});
+                }
+                Lib.get('/notifications/unread-count').then(function (res) {
+                    unread.value = res.data || 0;
+                }).catch(function () {});
+                if (canReview.value) {
+                    Lib.get('/recommend/pending').then(function (res) {
+                        spotlight.value = (res.data || []).length;
+                    }).catch(function () {});
+                } else if (Lib.can(me.value, '预约图书')) {
+                    Lib.get('/reservations/my', { page: 1, size: 1, status: '等待中' }).then(function (res) {
+                        spotlight.value = res.data.total || 0;
+                    }).catch(function () {});
+                }
+            }
+
+            function doLogout() { Lib.logout(); }
+
+            onMounted(async function () {
+                try {
+                    me.value = await Lib.initPage('首页');
+                    await loadCounts();
+                } catch (e) {
+                    Lib.toast(Lib.errorMessage(e), 'error');
+                }
+            });
+
+            return { me, initial, featureList, canReview, todayText, profileFields, bookTotal, activeLoans, unread, spotlight, doLogout, Lib };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

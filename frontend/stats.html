@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据统计 · 图书馆管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar" v-if="me">
+        <div class="brand"><span class="logo">📚</span><div><div class="brand-name">图书馆管理系统</div><div class="brand-sub">借阅数据统计</div></div></div>
+        <div class="top-actions">
+            <a class="notif-bell" href="notifications.html">🔔<span id="notif-count" class="notif-count"></span></a>
+            <div class="top-user"><span class="avatar-sm">{{ me.name.slice(0, 1) }}</span><span class="user-name">{{ me.name }}</span><span class="badge" :class="Lib.roleClass(me.role)">{{ me.role }}</span></div>
+            <button class="btn btn-outline btn-sm" @click="Lib.logout()">退出</button>
+        </div>
+    </header>
+
+    <div class="layout" v-if="me">
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="main">
+            <div class="page-head"><div><h2>数据统计</h2><p>按图书类型和读者专业统计借阅次数，全部类型均会显示。</p></div><button class="btn btn-outline btn-sm" @click="loadAll">刷新</button></div>
+
+            <div class="summary-grid">
+                <div class="summary-card"><span class="summary-icon">📊</span><div><div class="summary-num">{{ typeTotal }}</div><div class="summary-label">按类型借阅合计</div></div></div>
+                <div class="summary-card"><span class="summary-icon">🎓</span><div><div class="summary-num">{{ majorTotal }}</div><div class="summary-label">按专业借阅合计</div></div></div>
+                <div class="summary-card"><span class="summary-icon">🏷️</span><div><div class="summary-num">{{ types.length }}</div><div class="summary-label">图书类型数</div></div></div>
+            </div>
+
+            <div class="loading" v-if="loading"><span class="spinner"></span>加载中…</div>
+            <template v-else>
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-head"><h3>按图书类型统计</h3><span class="text-muted small">借阅次数</span></div>
+                        <div class="card-body">
+                            <div class="empty-state" v-if="types.length === 0"><div class="empty-icon">📚</div>暂无数据。</div>
+                            <div v-else>
+                                <div class="bar-chart">
+                                    <div class="bar-row" v-for="item in types" :key="item.name">
+                                        <div class="bar-label">{{ item.name }}</div>
+                                        <div class="bar-track"><div class="bar-fill" :style="{ width: pct(item.count, typeMax) + '%' }"></div></div>
+                                        <div class="bar-value">{{ item.count }}</div>
+                                    </div>
+                                </div>
+                                <div class="table-wrap mt-16">
+                                    <table class="data-table">
+                                        <thead><tr><th>类型</th><th>借阅次数</th><th>占比</th></tr></thead>
+                                        <tbody><tr v-for="item in types" :key="'t-' + item.name"><td>{{ item.name }}</td><td>{{ item.count }}</td><td>{{ pct(item.count, typeTotal) }}%</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head"><h3>按用户专业统计</h3><span class="text-muted small">借阅次数</span></div>
+                        <div class="card-body">
+                            <div class="empty-state" v-if="majors.length === 0"><div class="empty-icon">🎓</div>暂无数据。</div>
+                            <div v-else>
+                                <div class="bar-chart">
+                                    <div class="bar-row" v-for="item in majors" :key="item.name">
+                                        <div class="bar-label">{{ item.name }}</div>
+                                        <div class="bar-track"><div class="bar-fill" :style="{ width: pct(item.count, majorMax) + '%' }"></div></div>
+                                        <div class="bar-value">{{ item.count }}</div>
+                                    </div>
+                                </div>
+                                <div class="table-wrap mt-16">
+                                    <table class="data-table">
+                                        <thead><tr><th>专业</th><th>借阅次数</th><th>占比</th></tr></thead>
+                                        <tbody><tr v-for="item in majors" :key="'m-' + item.name"><td>{{ item.name }}</td><td>{{ item.count }}</td><td>{{ pct(item.count, majorTotal) }}%</td></tr></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-18">
+                    统计口径：按借阅记录中的图书类型 / 读者专业分组计数；没有借阅记录的类型或专业也会以 0 显示。
+                </div>
+            </template>
+        </main>
+    </div>
+</div>
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/axios.min.js"></script>
+<script src="js/common.js"></script>
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+    createApp({
+        setup() {
+            const me = ref(null);
+            const types = ref([]);
+            const majors = ref([]);
+            const loading = ref(false);
+            const typeTotal = computed(function () { return types.value.reduce(function (s, i) { return s + Number(i.count || 0); }, 0); });
+            const majorTotal = computed(function () { return majors.value.reduce(function (s, i) { return s + Number(i.count || 0); }, 0); });
+            const typeMax = computed(function () { return Math.max.apply(null, [1].concat(types.value.map(function (i) { return Number(i.count || 0); }))); });
+            const majorMax = computed(function () { return Math.max.apply(null, [1].concat(majors.value.map(function (i) { return Number(i.count || 0); }))); });
+
+            function pct(count, max) {
+                if (!max) return 0;
+                return Math.max(0, Math.round(Number(count || 0) / Number(max) * 100));
+            }
+
+            async function loadAll() {
+                loading.value = true;
+                try {
+                    const t = await Lib.get('/stats/types');
+                    const m = await Lib.get('/stats/majors');
+                    types.value = t.data || [];
+                    majors.value = m.data || [];
+                } catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+                finally { loading.value = false; }
+            }
+
+            onMounted(async function () {
+                try { me.value = await Lib.initPage('数据统计'); await loadAll(); }
+                catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+            });
+
+            return { me, types, majors, loading, typeTotal, majorTotal, typeMax, majorMax, pct, loadAll, Lib };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

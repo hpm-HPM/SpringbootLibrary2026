@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>预约管理 · 图书馆管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar" v-if="me">
+        <div class="brand"><span class="logo">📚</span><div><div class="brand-name">图书馆管理系统</div><div class="brand-sub">预约管理</div></div></div>
+        <div class="top-actions">
+            <a class="notif-bell" href="notifications.html">🔔<span id="notif-count" class="notif-count"></span></a>
+            <div class="top-user"><span class="avatar-sm">{{ me.name.slice(0, 1) }}</span><span class="user-name">{{ me.name }}</span><span class="badge" :class="Lib.roleClass(me.role)">{{ me.role }}</span></div>
+            <button class="btn btn-outline btn-sm" @click="Lib.logout()">退出</button>
+        </div>
+    </header>
+
+    <div class="layout" v-if="me">
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="main">
+            <div class="page-head">
+                <div><h2>预约管理</h2><p>库存为零时可预约；有可借副本时系统会把“可借”消息推送到你的消息通知。</p></div>
+                <button class="btn btn-primary" @click="openCreate">+ 新建预约</button>
+            </div>
+
+            <div class="summary-grid">
+                <div class="summary-card"><span class="summary-icon">⏳</span><div><div class="summary-num">{{ waitingCount }}</div><div class="summary-label">等待中</div></div></div>
+                <div class="summary-card"><span class="summary-icon">📬</span><div><div class="summary-num">{{ availableCount }}</div><div class="summary-label">可借副本</div></div></div>
+                <div class="summary-card"><span class="summary-icon">📋</span><div><div class="summary-num">{{ total }}</div><div class="summary-label">当前列表</div></div></div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <div class="tabs" style="margin:0;border:0;">
+                        <button class="tab" :class="{ active: tab === 'my' }" @click="switchTab('my')">我的预约</button>
+                        <button class="tab" v-if="canManage" :class="{ active: tab === 'all' }" @click="switchTab('all')">全部预约</button>
+                    </div>
+                    <div class="toolbar" v-if="tab === 'all'" style="margin:0;">
+                        <input v-model.trim="keyword" class="input" placeholder="读者姓名 / 书名" @keyup.enter="search">
+                        <button class="btn btn-primary btn-sm" @click="search">查询</button>
+                    </div>
+                </div>
+                <div class="card-body" style="padding-top:0;">
+                    <div class="loading" v-if="loading"><span class="spinner"></span>加载中…</div>
+                    <div class="empty-state" v-else-if="rows.length === 0"><div class="empty-icon">⏳</div>暂无预约记录。</div>
+                    <div class="table-wrap" v-else>
+                        <table class="data-table">
+                            <thead><tr><th>图书</th><th v-if="tab === 'all'">读者</th><th>预约时间</th><th>状态</th><th>可借通知时间</th><th>操作</th></tr></thead>
+                            <tbody><tr v-for="r in rows" :key="r.id">
+                                <td><div class="book-cell"><img v-if="r.coverUrl" :src="Lib.fileUrl(r.coverUrl)" class="book-cover" alt="封面"><span v-else class="cover-placeholder">📕</span><div><strong>{{ r.bookTitle }}</strong><div class="small text-muted">{{ r.bookId }}</div></div></div></td>
+                                <td v-if="tab === 'all'"><strong>{{ r.userName }}</strong><div class="small text-muted">{{ r.userId }}</div></td>
+                                <td>{{ Lib.fmt(r.createTime) }}</td>
+                                <td><span class="badge" :class="statusClass(r.status)">{{ r.status }}</span></td>
+                                <td>{{ r.notifyTime ? Lib.fmt(r.notifyTime) : '-' }}</td>
+                                <td>
+                                    <button v-if="r.status === '等待中' || r.status === '可借'" class="btn btn-outline btn-sm" @click="cancel(r)">取消预约</button>
+                                    <span v-else class="text-muted small">—</span>
+                                </td>
+                            </tr></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" v-if="total > size">
+                        <span class="page-total">第 {{ page }} / {{ totalPages }} 页</span>
+                        <button class="btn btn-outline btn-sm" :disabled="page <= 1" @click="go(page - 1)">上一页</button>
+                        <button class="btn btn-outline btn-sm" :disabled="page >= totalPages" @click="go(page + 1)">下一页</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-mask" v-if="showCreate" @click.self="showCreate = false">
+        <div class="modal">
+            <div class="modal-header"><h3>新建预约</h3><button class="modal-close" @click="showCreate = false">×</button></div>
+            <div class="modal-body">
+                <label class="field"><span>搜索图书</span><input v-model.trim="bookKeyword" class="input" placeholder="输入书名 / 作者，留空显示全部" @keyup.enter="loadZeroBooks"></label>
+                <div class="gallery" v-if="zeroBooks.length">
+                    <div class="gallery-item" v-for="b in zeroBooks" :key="b.id" @click="selectedBook = b" :class="{ selected: selectedBook && selectedBook.id === b.id }">
+                        <img v-if="b.coverUrl" :src="Lib.fileUrl(b.coverUrl)" class="book-cover" alt="封面">
+                        <span v-else class="cover-placeholder">📕</span>
+                        <div class="small"><strong>{{ b.title }}</strong><div class="text-muted">{{ b.author }}</div><div class="text-muted">库存 {{ b.stock }}</div></div>
+                    </div>
+                </div>
+                <div class="empty-state" v-else><div class="empty-icon">🔍</div>没有找到库存为零的图书。</div>
+                <div class="alert alert-info mt-16" v-if="selectedBook">已选择《{{ selectedBook.title }}》，提交后将进入等待队列。</div>
+                <div class="form-error" v-if="error">{{ error }}</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" @click="showCreate = false">取消</button>
+                <button class="btn btn-primary" :disabled="!selectedBook" @click="create">提交预约</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/axios.min.js"></script>
+<script src="js/common.js"></script>
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+    createApp({
+        setup() {
+            const me = ref(null);
+            const tab = ref('my');
+            const rows = ref([]);
+            const page = ref(1);
+            const size = ref(10);
+            const total = ref(0);
+            const loading = ref(false);
+            const keyword = ref('');
+            const showCreate = ref(false);
+            const bookKeyword = ref('');
+            const zeroBooks = ref([]);
+            const selectedBook = ref(null);
+            const error = ref('');
+            const canManage = computed(function () { return Lib.can(me.value, '预约管理'); });
+            const totalPages = computed(function () { return Math.max(1, Math.ceil(total.value / size.value)); });
+            const waitingCount = computed(function () { return rows.value.filter(function (r) { return r.status === '等待中'; }).length; });
+            const availableCount = computed(function () { return rows.value.filter(function (r) { return r.status === '可借'; }).length; });
+
+            function statusClass(status) {
+                if (status === '等待中') return 'badge-warn';
+                if (status === '可借') return 'badge-success';
+                if (status === '已过期') return 'badge-danger';
+                return 'badge-muted';
+            }
+
+            async function load() {
+                loading.value = true;
+                try {
+                    const url = tab.value === 'all' ? '/reservations/search' : '/reservations/my';
+                    const params = { page: page.value, size: size.value };
+                    if (tab.value === 'all') params.keyword = keyword.value;
+                    const res = await Lib.get(url, params);
+                    rows.value = res.data.content || [];
+                    total.value = res.data.total || 0;
+                } catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+                finally { loading.value = false; }
+            }
+
+            function switchTab(value) { tab.value = value; page.value = 1; load(); }
+            function search() { page.value = 1; load(); }
+            function go(p) { page.value = p; load(); }
+
+            async function openCreate() {
+                showCreate.value = true; error.value = ''; selectedBook.value = null; bookKeyword.value = '';
+                await loadZeroBooks();
+            }
+            async function loadZeroBooks() {
+                try {
+                    const res = await Lib.get('/books', { page: 1, size: 100, keyword: bookKeyword.value, status: '正常' });
+                    zeroBooks.value = (res.data.content || []).filter(function (b) { return b.stock <= 0; });
+                } catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+            }
+            async function create() {
+                if (!selectedBook.value) return;
+                try {
+                    await Lib.post('/reservations', { bookId: selectedBook.value.id });
+                    Lib.toast('预约成功，请等待可借通知');
+                    showCreate.value = false;
+                    await load();
+                    Lib.refreshUnreadCount();
+                } catch (e) { error.value = Lib.errorMessage(e); }
+            }
+            async function cancel(r) {
+                if (!confirm('确定取消《' + r.bookTitle + '》的预约吗？')) return;
+                try {
+                    await Lib.del('/reservations/' + r.id);
+                    Lib.toast('已取消预约');
+                    await load();
+                } catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+            }
+
+            onMounted(async function () {
+                try { me.value = await Lib.initPage('预约管理'); await load(); }
+                catch (e) { Lib.toast(Lib.errorMessage(e), 'error'); }
+            });
+
+            return { me, tab, rows, page, size, total, loading, keyword, showCreate, bookKeyword, zeroBooks, selectedBook, error, canManage, totalPages, waitingCount, availableCount, statusClass, load, switchTab, search, go, openCreate, loadZeroBooks, create, cancel, Lib };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
