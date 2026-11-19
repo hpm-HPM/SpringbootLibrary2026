@@ -38,7 +38,7 @@ spring:
 app:
   upload-dir: uploads
   cors:
-    allowed-origin-patterns: "http://localhost:*,http://127.0.0.1:*"
+    allowed-origin-patterns: "http://localhost:*,http://127.0.0.1:*,http://*:*"
 
 logging:
   level:

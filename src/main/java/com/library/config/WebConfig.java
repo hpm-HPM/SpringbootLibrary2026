@@ -24,6 +24,9 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
 
+    @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}")
+    private List<String> allowedOriginPatterns;
+
     public WebConfig(LoginInterceptor loginInterceptor, PermissionInterceptor permissionInterceptor) {
         this.loginInterceptor = loginInterceptor;
         this.permissionInterceptor = permissionInterceptor;
@@ -50,7 +53,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Bean
     public FilterRegistrationBean<CorsFilter> corsFilter() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        configuration.setAllowedOriginPatterns(allowedOriginPatterns);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Content-Disposition"));

@@ -210,18 +210,23 @@ http://127.0.0.1:8080/LibraryFrontend2026/login.html
 `frontend/js/common.js` 默认：
 
 ```js
+const pageHost = location.hostname || '127.0.0.1';
 const API_BASE = window.LIBRARY_API_BASE ||
-  (location.port === '8081' ? location.origin + '/api' : 'http://127.0.0.1:8081/api');
+  (location.port === '8081'
+    ? location.origin + '/api'
+    : location.protocol + '//' + pageHost + ':8081/api');
 ```
 
-- 前端部署在 Tomcat 8080 时，自动请求 `http://127.0.0.1:8081/api`。
+- 前端部署在 Tomcat 8080 时，自动请求**当前页面主机**的 8081 接口：本机访问用 `localhost`/`127.0.0.1`，
+  局域网访问（如 `http://192.168.1.100:8080/...`）会自动请求 `http://192.168.1.100:8081/api`。
 - 如后端部署在其他机器/端口，在页面引入 `common.js` 之前设置：
 
 ```html
 <script>window.LIBRARY_API_BASE = 'http://192.168.1.100:8081/api';</script>
 ```
 
-后端已配置 CORS，允许 `http://localhost:*`、`http://127.0.0.1:*` 携带 Cookie 访问。
+后端 CORS 默认允许 `http://localhost:*`、`http://127.0.0.1:*` 和 `http://*:*`（课堂/局域网演示用），
+可在 `application.yml` 的 `app.cors.allowed-origin-patterns` 中收窄。
 
 ### 6.3 运行方式
 
@@ -302,6 +307,7 @@ ER 图（Mermaid）见 [`docs/ER.md`](docs/ER.md)。
 仓库已在本地初始化，并按功能阶段完成提交（`git log --oneline` 可查看）：
 
 ```text
+fix: 支持局域网访问并完善前后端地址说明
 docs: 添加数据库脚本、ER 图、接口文档与运行说明
 feat: 添加 Vue 3 前后端分离前端页面
 feat: 实现认证、图书、借阅、预约、推荐、统计与 AOP 日志接口
@@ -327,8 +333,9 @@ git push -u origin master
    确认使用 `start-backend.bat`，或手动加 `-Dloader.path=.../target/lib`。
 
 2. **前端登录 401 / CORS**
-   确认后端运行在 8081，前端地址是 `http://127.0.0.1:8080/LibraryFrontend2026/`；跨主机部署时设置
-   `window.LIBRARY_API_BASE`，并把前端来源加入 CORS 配置。
+   确认后端运行在 8081；本机访问 `http://127.0.0.1:8080/LibraryFrontend2026/` 或
+   `http://localhost:8080/LibraryFrontend2026/`。局域网访问时前端会自动使用当前主机名请求 8081；
+   跨机器/端口部署可设置 `window.LIBRARY_API_BASE`，并把前端来源加入 CORS 配置。
 
 3. **数据库列名找不到**
    确认 `application.yml` 使用 `PhysicalNamingStrategyStandardImpl`，不要改成默认的蛇形命名策略。

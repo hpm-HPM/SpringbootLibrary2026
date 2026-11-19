@@ -4,8 +4,11 @@
 
     // 前端与后端分开部署时，默认访问 8081 的 Spring Boot 接口。
     // 如需修改，在引入本文件之前设置 window.LIBRARY_API_BASE。
+    const pageHost = location.hostname || '127.0.0.1';
     const API_BASE = window.LIBRARY_API_BASE
-        || (location.port === '8081' ? location.origin + '/api' : 'http://127.0.0.1:8081/api');
+        || (location.port === '8081'
+            ? location.origin + '/api'
+            : location.protocol + '//' + pageHost + ':8081/api');
 
     const http = axios.create({
         baseURL: API_BASE,
