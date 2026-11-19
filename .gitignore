@@ -1,0 +1,29 @@
+# Maven
+target/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# 日志与临时文件
+*.log
+logs/
+_*.js
+_*.png
+_*.txt
+_chromeprofile/
+__pycache__/
+
+# 上传文件（保留目录占位）
+uploads/*
+!uploads/.gitkeep
+
+# 操作系统
+Thumbs.db
+.DS_Store
