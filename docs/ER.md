@@ -1,7 +1,11 @@
 # 数据库 ER 图
 
-> 原有八张表来自 `librarydb.sql`；`book_attachment`、`reservation`、`notification`、`operation_log`
-> 由 `sql/schema.sql` 创建。`knowledge`、`log`、`student` 为原库保留表，其中 `log` 的字段较简单，
+![图书馆管理系统数据库 ER 图](ER.png)
+
+> 核心业务共 9 张表：`user`、`book`、`bookcopy`、`loan`、`bookrecommend`、
+> `book_attachment`、`reservation`、`notification`、`operation_log`。
+> 原有表来自 `librarydb.sql`；`book_attachment`、`reservation`、`notification`、`operation_log`
+> 由 `sql/schema.sql` 创建。`knowledge`、`log`、`student` 为原库保留的辅助表，其中 `log` 的字段较简单，
 > 本项目改用 `operation_log` 记录 AOP 日志。
 
 ```mermaid
